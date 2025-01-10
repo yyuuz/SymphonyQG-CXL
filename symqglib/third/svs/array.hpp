@@ -26,7 +26,7 @@ namespace symqg::data::array_impl {
  */
 template <typename Dims>
 [[nodiscard]] constexpr auto size(const Dims& dims) -> size_t {
-    static_assert(std::is_same<typename Dims::value_type, size_t>::value);
+    static_assert(std::is_same_v<typename Dims::value_type, size_t>);
 
     size_t res = 1;
     std::for_each(dims.begin(), dims.end(), [&](auto cur_d) { res *= cur_d; });
@@ -75,7 +75,7 @@ class Array {
 
     explicit Array(Dims dims) : Array(std::move(dims), Alloc()) {}
 
-    ~Array() {
+    ~Array() noexcept {
         if (pointer_ != nullptr) {
             destroy();
         }
@@ -84,7 +84,7 @@ class Array {
     /// @brief move constructor
     Array(Array&& other) noexcept
         : pointer_{std::exchange(other.pointer_, nullptr)}
-        , dims_{other.dims_}
+        , dims_{std::move(other.dims_)}
         , allocator_{std::move(other.allocator_)} {}
 
     Array& operator=(Array&& other) noexcept {
@@ -95,7 +95,7 @@ class Array {
         if constexpr (atraits::propagate_on_container_move_assignment::value) {
             allocator_ = std::move(other.allocator_);
         }
-        dims_ = std::move(other.dims_);
+        dims_ = std::exchange(other.dims_, Dims());
         pointer_ = std::exchange(other.pointer_, nullptr);
         return *this;
     }
@@ -107,7 +107,9 @@ class Array {
     [[nodiscard]] const_reference at(size_t idx) const { return pointer_[idx]; }
 
     void save(std::ofstream& output) const {
-        output.write(reinterpret_cast<char*>(pointer_), bytes());
+        if (output.good()) {
+            output.write(reinterpret_cast<char*>(pointer_), bytes());
+        }
     }
     void load(std::ifstream& input) {
         input.read(reinterpret_cast<char*>(pointer_), bytes());

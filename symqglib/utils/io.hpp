@@ -3,6 +3,7 @@
 #include <sys/stat.h>
 
 #include <cassert>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <type_traits>
@@ -14,24 +15,16 @@ inline size_t get_filesize(const char* filename) {
     return tmp == 0 ? stat_buf.st_size : -1;
 }
 
-inline bool file_exist(const char* filename) {
-    std::ifstream file(filename);
-    if (!file.good()) {
-        file.close();
-        return false;
-    }
-    file.close();
-    return true;
-}
+inline bool file_exists(const char* filename) { return std::filesystem::exists(filename); }
 
 template <typename T, class M>
 void load_vecs(const char* filename, M& row_mat) {
-    if (!file_exist(filename)) {
+    if (!file_exists(filename)) {
         std::cerr << "File " << filename << " not exists\n";
         abort();
     }
 
-    assert((std::is_same_v<T*, decltype(row_mat.data())> == true));
+    assert((std::is_same_v<T*, std::decay_t<decltype(row_mat.data())>> == true));
 
     uint32_t tmp;
     size_t file_size = get_filesize(filename);
@@ -57,12 +50,12 @@ void load_vecs(const char* filename, M& row_mat) {
 
 template <typename T, class M>
 void load_bin(const char* filename, M& row_mat) {
-    if (!file_exist(filename)) {
+    if (!file_exists(filename)) {
         std::cerr << "File " << filename << " not exists\n";
         abort();
     }
 
-    assert((std::is_same_v<T*, decltype(row_mat.data)> == true));
+    assert((std::is_same_v<T*, std::decay_t<decltype(row_mat.data())>> == true));
 
     uint32_t rows;
     uint32_t cols;

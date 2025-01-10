@@ -70,7 +70,7 @@ static inline void fast_appro_dist(
     float* __restrict__ appro_dist
 );
 
-class Scanner {
+class QGScanner {
    private:
     // func for packing lookup tables
     std::function<void(const uint8_t* __restrict__, uint8_t* __restrict__)> pack_lut_func_ =
@@ -81,9 +81,9 @@ class Scanner {
         fastscan_func_ = fastscan_impl<128, 32>;
 
    public:
-    Scanner() = default;
+    QGScanner() = default;
 
-    explicit Scanner(size_t padded_dim, size_t degree_bound) {
+    explicit QGScanner(size_t padded_dim, size_t degree_bound) {
         // currently, due to ffht, the padded dimension is power of 2
         switch (padded_dim) {
             case 64:
@@ -141,7 +141,7 @@ class Scanner {
         this->pack_lut_func_(byte_query, LUT);
     }
 
-    void fastscan(
+    void scan_neighbors(
         float* __restrict__ appro_dist,
         const uint8_t* __restrict__ LUT,
         float sqr_y,

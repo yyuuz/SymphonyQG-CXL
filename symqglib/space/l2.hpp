@@ -1,19 +1,27 @@
 #pragma once
 
-#include <bits/stdc++.h>
 #include <immintrin.h>
+
+#include <cstddef>
 
 namespace symqg::space {
 
-inline auto l2_sqr(
+inline float reduce_add_m256(__m256 x) {
+    auto sumh = _mm_add_ps(_mm256_castps256_ps128(x), _mm256_extractf128_ps(x, 1));
+    auto tmp1 = _mm_add_ps(sumh, _mm_movehl_ps(sumh, sumh));
+    auto tmp2 = _mm_add_ps(tmp1, _mm_movehdup_ps(tmp1));
+    return _mm_cvtss_f32(tmp2);
+}
+
+inline float l2_sqr(
     const float* __restrict__ vec0, const float* __restrict__ vec1, size_t dim
-) -> float {
+) {
     float result = 0;
 #if defined(__AVX512F__)
-    size_t num16 = dim - (dim & 0b1111);
+    size_t mul16 = dim - (dim & 0b1111);
     auto sum = _mm512_setzero_ps();
     size_t i = 0;
-    for (; i < num16; i += 16) {
+    for (; i < mul16; i += 16) {
         auto xxx = _mm512_loadu_ps(&vec0[i]);
         auto yyy = _mm512_loadu_ps(&vec1[i]);
         auto ttt = _mm512_sub_ps(xxx, yyy);
@@ -26,10 +34,10 @@ inline auto l2_sqr(
     }
 
 #elif defined(__AVX2__)
-    size_t num8 = dim - (dim & 0b111);
+    size_t mul8 = dim - (dim & 0b111);
     __m256 sum = _mm256_setzero_ps();
     size_t i = 0;
-    for (; i < num8; i += 8) {
+    for (; i < mul8; i += 8) {
         __m256 xx = _mm256_loadu_ps(&vec0[i]);
         __m256 yy = _mm256_loadu_ps(&vec1[i]);
         __m256 t = _mm256_sub_ps(xx, yy);
@@ -42,8 +50,32 @@ inline auto l2_sqr(
     }
 
 #else
-    for (size_t i = 0; i < L; ++i) {
+    for (size_t i = 0; i < dim; ++i) {
         float tmp = vec0[i] - vec1[i];
+        result += tmp * tmp;
+    }
+#endif
+    return result;
+}
+
+inline float l2_sqr_single(const float* __restrict__ vec0, size_t dim) {
+    float result = 0;
+#if defined(__AVX512F__)
+    size_t mul16 = dim - (dim & 0b1111);
+    auto sum = _mm512_setzero_ps();
+    size_t i = 0;
+    for (; i < mul16; i += 16) {
+        auto xxx = _mm512_loadu_ps(&vec0[i]);
+        sum = _mm512_fmadd_ps(xxx, xxx, sum);
+    }
+    result = _mm512_reduce_add_ps(sum);
+    for (; i < dim; ++i) {
+        float tmp = vec0[i];
+        result += tmp * tmp;
+    }
+#else
+    for (size_t i = 0; i < dim; ++i) {
+        float tmp = vec0[i];
         result += tmp * tmp;
     }
 #endif
