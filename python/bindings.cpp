@@ -16,6 +16,7 @@ namespace py = pybind11;
 using py_float_array = py::array_t<float, py::array::c_style | py::array::forcecast>;
 using py_uint_array = py::array_t<uint32_t, py::array::c_style | py::array::forcecast>;
 
+namespace {
 void get_arr_shape(const py::buffer_info& buffer, size_t& rows, size_t& cols) {
     if (buffer.ndim != 2 && buffer.ndim != 1) {
         std::cerr << "Input data has an incorrect shape. Data must be a 1D or 2D array.\n";
@@ -29,6 +30,7 @@ void get_arr_shape(const py::buffer_info& buffer, size_t& rows, size_t& cols) {
         cols = buffer.shape[0];
     }
 }
+}  // namespace
 
 struct Index {
     std::unique_ptr<symqg::QuantizedGraph> index = nullptr;
@@ -76,9 +78,10 @@ struct Index {
         size_t dim = 0;
         get_arr_shape(buffer, num, dim);
         if (num != index->num_vertices() || dim != index->dimension()) {
-            std::cerr << "The shape of data is different with initialization! Expected shape: (" 
-                      << index->num_vertices() << ", " << index->dimension() 
-                      << "), but got: (" << num << ", " << dim << ")\n";
+            std::cerr
+                << "The shape of data is different with initialization! Expected shape: ("
+                << index->num_vertices() << ", " << index->dimension() << "), but got: ("
+                << num << ", " << dim << ")\n";
             return;
         }
         symqg::QGBuilder builder(*index, ef_indexing, items.data(), num_threads);

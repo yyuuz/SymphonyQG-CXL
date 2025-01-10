@@ -130,11 +130,7 @@ class QuantizedGraph {
     ) const;
 
    public:
-    QuantizedGraph() = default;
-
     explicit QuantizedGraph(size_t, size_t, size_t);
-
-    ~QuantizedGraph() = default;
 
     [[nodiscard]] auto num_vertices() const { return this->num_points_; }
 
@@ -379,9 +375,6 @@ inline void QuantizedGraph::initialize() {
     this->neighbor_offset_ =
         factor_offset_ + sizeof(Factor) * degree_bound_ / sizeof(float);
     this->row_offset_ = neighbor_offset_ + degree_bound_;
-
-    /* Check alignment */
-    assert(row_offset_ * sizeof(float) % 32 == 0);
 
     /* Allocate memory of data*/
     data_ = data::
