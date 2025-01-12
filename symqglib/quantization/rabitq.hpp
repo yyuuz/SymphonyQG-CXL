@@ -7,7 +7,6 @@
 
 #include "../common.hpp"
 #include "../space/bitwise.hpp"
-#include "../space/l2.hpp"
 #include "./fastscan_impl.hpp"
 
 namespace symqg {
@@ -95,12 +94,9 @@ static inline void rabitq_factors(
     }
 
     for (long j = 0; j < num_points; ++j) {
-        double cur_x = std::sqrt(static_cast<double>(space::l2_sqr_single(
-            &rotated_data_residual(j, 0),
-            dim
-        )));                           // current dist 2 centroid
-        double cur_x0 = fac_x0(j, 0);  // current <o, o_bar>
-        double cur_x1 = fac_x1(j, 0);  // current <c, o_bar>
+        double cur_x = x_rotated_norm(j, 0);  // current dist 2 centroid
+        double cur_x0 = fac_x0(j, 0);         // current <o, o_bar>
+        double cur_x1 = fac_x1(j, 0);         // current <c, o_bar>
         long double x_x0 = static_cast<long double>(cur_x) / cur_x0;
 
         triple_x[j] = static_cast<float>((cur_x * cur_x) + (2 * x_x0 * cur_x1));
