@@ -89,7 +89,7 @@ if __name__ == "__main__":
                     index.set_ef(EF)
                     for i in range(NQ):
                         t1 = time()
-                        pred = index.search(query[i], TOPK)
+                        pred = index.search(query[i], TOPK) #qg.hpp 240 QuantizedGraph::search
                         t2 = time()
                         results.append(pred)
                         total_time += t2 - t1

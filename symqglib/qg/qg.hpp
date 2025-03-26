@@ -258,7 +258,7 @@ inline void QuantizedGraph::search_qg(
 ) {
     // query preparation
     QGQuery q_obj(query, padded_dim_);
-    q_obj.query_prepare(rotator_, scanner_);
+    q_obj.query_prepare(rotator_, scanner_);// lut_ is prepared here
 
     /* Searching pool initialization */
     search_pool_.insert(this->entry_point_, FLT_MAX);
@@ -374,7 +374,7 @@ inline void QuantizedGraph::initialize() {
         code_offset_ + padded_dim_ / 64 * 2 * degree_bound_;  // Pos of Factor
     this->neighbor_offset_ =
         factor_offset_ + sizeof(Factor) * degree_bound_ / sizeof(float);
-    this->row_offset_ = neighbor_offset_ + degree_bound_;
+    this->row_offset_ = neighbor_offset_ + degree_bound_;//对于sift 128维，row_offset_ = 128 + 128/64*2*32 + 32*3 + 32 = 512
 
     /* Allocate memory of data*/
     data_ = data::
