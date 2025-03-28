@@ -364,6 +364,26 @@ inline void QuantizedGraph::update_results(
     }
 }
 
+// inline void QuantizedGraph::initialize() {
+//     /* check size */
+//     assert(padded_dim_ % 64 == 0);
+//     assert(padded_dim_ >= dimension_);
+
+//     this->code_offset_ = dimension_;  // Pos of packed code (aligned)
+//     this->factor_offset_ =
+//         code_offset_ + padded_dim_ / 64 * 2 * degree_bound_;  // Pos of Factor
+//     this->neighbor_offset_ =
+//         factor_offset_ + sizeof(Factor) * degree_bound_ / sizeof(float);
+//     this->row_offset_ = neighbor_offset_ + degree_bound_;//对于sift 128维，row_offset_ = 128 + 128/64*2*32 + 32*3 + 32 = 512
+
+//     /* Allocate memory of data*/
+//     data_ = data::
+//         Array<float, std::vector<size_t>, memory::AlignedAllocator<float, 1 << 22, true>>(
+//             std::vector<size_t>{num_points_, row_offset_}
+//             ,memory::AlignedAllocator<float, 1 << 22, true>(true)            
+//         );
+// }
+
 inline void QuantizedGraph::initialize() {
     /* check size */
     assert(padded_dim_ % 64 == 0);
@@ -376,11 +396,20 @@ inline void QuantizedGraph::initialize() {
         factor_offset_ + sizeof(Factor) * degree_bound_ / sizeof(float);
     this->row_offset_ = neighbor_offset_ + degree_bound_;//对于sift 128维，row_offset_ = 128 + 128/64*2*32 + 32*3 + 32 = 512
 
+    // data_dram_ = data::
+    //     Array<float, std::vector<size_t>, memory::AlignedAllocator<float, 1 << 22, true>>(
+    //         std::vector<size_t>{num_points_, row_offset_}
+    //         ,memory::AlignedAllocator<float, 1 << 22, true>(false)            
+    //     );
+    
     /* Allocate memory of data*/
+    std::cout << "Allocating memory of data...\n";
     data_ = data::
         Array<float, std::vector<size_t>, memory::AlignedAllocator<float, 1 << 22, true>>(
             std::vector<size_t>{num_points_, row_offset_}
+            ,memory::AlignedAllocator<float, 1 << 22, true>(true)
         );
+    std::cout << "Memory of data allocated\n";
 }
 
 // find candidate neighbors for cur_id, exclude the vertex itself

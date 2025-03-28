@@ -3,11 +3,16 @@
 #include <immintrin.h>
 #include <sys/mman.h>
 
+#include <numa.h>
+#include <memkind.h>
+
 #include <cstdlib>
 #include <cstring>
 #include <new>
 
 #include "../utils/tools.hpp"
+
+//#define USE_CXL true
 
 namespace symqg::memory {
 #define PORTABLE_ALIGN32 __attribute__((aligned(32)))
@@ -17,8 +22,10 @@ template <typename T, size_t Alignment = 64, bool HugePage = false>
 class AlignedAllocator {
    private:
     static_assert(Alignment >= alignof(T));
+    
 
    public:
+    bool USE_CXL;
     using value_type = T;
 
     template <class U>
@@ -26,12 +33,44 @@ class AlignedAllocator {
         using other = AlignedAllocator<U, Alignment>;
     };
 
-    constexpr AlignedAllocator() noexcept = default;
+    // constexpr AlignedAllocator() noexcept = default;
 
-    constexpr AlignedAllocator(const AlignedAllocator&) noexcept = default;
+    // constexpr AlignedAllocator(const AlignedAllocator&) noexcept = default;
 
+    // template <typename U>
+    // constexpr explicit AlignedAllocator(AlignedAllocator<U, Alignment> const&) noexcept {}
+
+    // 默认构造函数，初始化 USE_CXL 为 false
+    constexpr AlignedAllocator() noexcept : USE_CXL(false) {}
+
+    // 拷贝构造函数，继承 USE_CXL 的值
+    constexpr AlignedAllocator(const AlignedAllocator& other) noexcept : USE_CXL(other.get_use_cxl()) {}
+
+    // 模板转换构造函数，继承 USE_CXL 的值
     template <typename U>
-    constexpr explicit AlignedAllocator(AlignedAllocator<U, Alignment> const&) noexcept {}
+    constexpr explicit AlignedAllocator(AlignedAllocator<U, Alignment> const& other) noexcept
+        : USE_CXL(other.get_use_cxl()) {}
+
+    // 新增的构造函数，允许用户显式设置 USE_CXL 的值
+    constexpr explicit AlignedAllocator(bool use_cxl) noexcept : USE_CXL(use_cxl) {}
+
+    // Getter 方法，用于访问 USE_CXL 的值
+    constexpr bool get_use_cxl() const noexcept {
+        return USE_CXL;
+    }
+    // 必须实现的 operator==
+    template <typename U>
+    constexpr bool operator==(const AlignedAllocator<U, Alignment, HugePage>&) const noexcept {
+        return true; // 分配器通常被认为是等价的
+    }
+
+    // 必须实现的 operator!=
+    template <typename U>
+    constexpr bool operator!=(const AlignedAllocator<U, Alignment, HugePage>&) const noexcept {
+        return false; // 分配器通常被认为是等价的
+    }
+
+
 
     [[nodiscard]] T* allocate(std::size_t n) {
         if (n > std::numeric_limits<std::size_t>::max() / sizeof(T)) {
@@ -39,7 +78,17 @@ class AlignedAllocator {
         }
 
         auto nbytes = round_up_to_multiple(n * sizeof(T), Alignment);
-        auto* ptr = ::operator new[](nbytes, std::align_val_t(Alignment));
+        void* ptr=nullptr;
+
+
+        if (USE_CXL) {
+            ptr = memkind_malloc(MEMKIND_DAX_KMEM_ALL, nbytes);
+            std::cout << "Allocated with CXL: " << ptr << ", size: " << nbytes << "\n";
+            assert(ptr);
+        } else {
+            //std::cout << "Allocated with DRAM: " << ptr << ", size: " << nbytes << "\n";
+            ptr = ::operator new[](nbytes, std::align_val_t(Alignment));
+        }
         if (HugePage) {
             madvise(ptr, nbytes, MADV_HUGEPAGE);
         }
@@ -47,7 +96,11 @@ class AlignedAllocator {
     }
 
     void deallocate(T* ptr, [[maybe_unused]] std::size_t bytes) {
-        ::operator delete[](ptr, std::align_val_t(Alignment));
+        if (USE_CXL) {
+            memkind_free(MEMKIND_DAX_KMEM_ALL, ptr);
+        } else {
+            ::operator delete[](ptr, std::align_val_t(Alignment));
+        }
     }
 };
 

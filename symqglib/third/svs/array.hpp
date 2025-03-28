@@ -20,6 +20,8 @@
 
 #include "../../utils/memory.hpp"
 
+
+
 namespace symqg::data::array_impl {
 /**
  * @brief get size of array
@@ -51,7 +53,13 @@ class Array {
 
     void destroy() {
         size_t num_elements = size();
-        atraits::deallocate(allocator_, pointer_, num_elements);
+        if(use_cxl_) {
+            std::cout<<"Freeing with CXL\n";
+            memkind_free(MEMKIND_DAX_KMEM_ALL, pointer_);
+        }
+        else {
+            atraits::deallocate(allocator_, pointer_, num_elements);
+        }
         pointer_ = nullptr;
     }
 
@@ -69,8 +77,10 @@ class Array {
 
     explicit Array(Dims dims, const Alloc& allocator)
         : dims_(std::move(dims)), allocator_(allocator) {
+        //allocator_ = memory::AlignedAllocator<float, 1 << 22, true>(true);
         size_t num_elements = size();
         pointer_ = atraits::allocate(allocator_, num_elements);
+        use_cxl_ = allocator_.USE_CXL;
     }
 
     explicit Array(Dims dims) : Array(std::move(dims), Alloc()) {}
@@ -85,6 +95,7 @@ class Array {
     Array(Array&& other) noexcept
         : pointer_{std::exchange(other.pointer_, nullptr)}
         , dims_{std::move(other.dims_)}
+        , use_cxl_{other.use_cxl_}
         , allocator_{std::move(other.allocator_)} {}
 
     Array& operator=(Array&& other) noexcept {
@@ -97,6 +108,7 @@ class Array {
         }
         dims_ = std::exchange(other.dims_, Dims());
         pointer_ = std::exchange(other.pointer_, nullptr);
+        use_cxl_ = other.use_cxl_;
         return *this;
     }
 
@@ -121,5 +133,6 @@ class Array {
     pointer pointer_ = nullptr;
     [[no_unique_address]] Dims dims_;
     [[no_unique_address]] Alloc allocator_;
+    bool use_cxl_=false ;
 };
 }  // namespace symqg::data

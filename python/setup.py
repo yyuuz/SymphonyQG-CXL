@@ -22,7 +22,7 @@ else:
     include_dirs.extend(["./symqglib"])
 
 
-libraries = []
+libraries = ["memkind"]
 extra_objects = []
 
 
