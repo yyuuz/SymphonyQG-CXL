@@ -1,4 +1,4 @@
-ROUND = 5   # round of testing query
+ROUND = 10   # round of testing query
 TOPK = 10   # knn
 EF = 400    # EF for indexing
 

@@ -50,6 +50,26 @@ class QuantizedGraph {
             1 << 22,
             true>>
         data_;  // vectors + graph + quantization codes
+
+    data::Array<
+        float,
+        std::vector<size_t>,
+        memory::AlignedAllocator<
+            float,
+            1 << 22,
+            true>>
+        data_dram_;  // vectors
+    
+    data::Array<
+        float,
+        std::vector<size_t>,
+        memory::AlignedAllocator<
+            float,
+            1 << 22,
+            true>>
+        data_cxl_; // graph + quantization codes
+    
+
     QGScanner scanner_;
     FHTRotator rotator_;
     HashBasedBooleanSet visited_;
@@ -222,6 +242,20 @@ inline void QuantizedGraph::load_index(const char* filename) {
     /* Data */
     data_.load(input);
 
+    for(size_t i = 0; i < num_points_; ++i) {
+        const float* src = data_.data() + (row_offset_ * i);
+        float* dst = data_dram_.data() + (dimension_ * i);
+        std::copy(src, src + dimension_, dst);
+    }
+    std::cout << "\tVectors Copied\n";
+
+    for(size_t i = 0; i < num_points_; ++i) {
+        const float* src = data_.data() + (row_offset_ * i);
+        float* dst = data_cxl_.data() + (row_offset_-code_offset_) * i;
+        std::copy(src+code_offset_, src + row_offset_, dst);
+    }
+    std::cout << "\tGraph Copied\n";
+
     /* Rotator */
     this->rotator_.load(input);
 
@@ -278,7 +312,8 @@ inline void QuantizedGraph::search_qg(
 
         float sqr_y = scan_neighbors(
             q_obj,
-            get_vector(cur_node),
+            //get_vector(cur_node),
+            cur_node,
             appro_dist.data(),
             this->search_pool_,
             this->degree_bound_
@@ -294,16 +329,18 @@ inline void QuantizedGraph::search_qg(
 // return exact distnace for current vertex
 inline float QuantizedGraph::scan_neighbors(
     const QGQuery& q_obj,
-    const float* cur_data,
+    PID cur_node,
     float* appro_dist,
     buffer::SearchBuffer& search_pool,
     uint32_t cur_degree
 ) const {
-    float sqr_y = space::l2_sqr(q_obj.query_data(), cur_data, dimension_);
+    const float* vec_data=&data_dram_.at(dimension_* cur_node);
+    const float* code_data = &data_cxl_.at((row_offset_-code_offset_) * cur_node);
+    float sqr_y = space::l2_sqr(q_obj.query_data(), vec_data, dimension_);
 
     /* Compute approximate distance by Fast Scan */
-    const auto* packed_code = reinterpret_cast<const uint8_t*>(&cur_data[code_offset_]);
-    const auto* factor = &cur_data[factor_offset_];
+    const auto* packed_code = reinterpret_cast<const uint8_t*>(&code_data);
+    const auto* factor = &code_data[factor_offset_-code_offset_];
     this->scanner_.scan_neighbors(
         appro_dist,
         q_obj.lut().data(),
@@ -315,7 +352,7 @@ inline float QuantizedGraph::scan_neighbors(
         factor
     );
 
-    const PID* ptr_nb = reinterpret_cast<const PID*>(&cur_data[neighbor_offset_]);
+    const PID* ptr_nb = reinterpret_cast<const PID*>(&code_data[neighbor_offset_-code_offset_]);
     for (uint32_t i = 0; i < cur_degree; ++i) {
         PID cur_neighbor = ptr_nb[i];
         float tmp_dist = appro_dist[i];
@@ -374,7 +411,7 @@ inline void QuantizedGraph::update_results(
 //         code_offset_ + padded_dim_ / 64 * 2 * degree_bound_;  // Pos of Factor
 //     this->neighbor_offset_ =
 //         factor_offset_ + sizeof(Factor) * degree_bound_ / sizeof(float);
-//     this->row_offset_ = neighbor_offset_ + degree_bound_;//对于sift 128维，row_offset_ = 128 + 128/64*2*32 + 32*3 + 32 = 512
+//     this->row_offset_ = neighbor_offset_ + degree_bound_;//对于sift 128维，row_offset_ = 128 + 128/64*2*32 + 32*3 + 32 = 384
 
 //     /* Allocate memory of data*/
 //     data_ = data::
@@ -394,22 +431,32 @@ inline void QuantizedGraph::initialize() {
         code_offset_ + padded_dim_ / 64 * 2 * degree_bound_;  // Pos of Factor
     this->neighbor_offset_ =
         factor_offset_ + sizeof(Factor) * degree_bound_ / sizeof(float);
-    this->row_offset_ = neighbor_offset_ + degree_bound_;//对于sift 128维，row_offset_ = 128 + 128/64*2*32 + 32*3 + 32 = 512
+    this->row_offset_ = neighbor_offset_ + degree_bound_;//对于sift 128维，row_offset_ = 128 + 128/64*2*32 + 32*3 + 32 = 384
 
-    // data_dram_ = data::
-    //     Array<float, std::vector<size_t>, memory::AlignedAllocator<float, 1 << 22, true>>(
-    //         std::vector<size_t>{num_points_, row_offset_}
-    //         ,memory::AlignedAllocator<float, 1 << 22, true>(false)            
-    //     );
     
     /* Allocate memory of data*/
     std::cout << "Allocating memory of data...\n";
     data_ = data::
         Array<float, std::vector<size_t>, memory::AlignedAllocator<float, 1 << 22, true>>(
             std::vector<size_t>{num_points_, row_offset_}
+            ,memory::AlignedAllocator<float, 1 << 22, true>(false)
+        );
+
+    data_dram_ = data::
+        Array<float, std::vector<size_t>, memory::AlignedAllocator<float, 1 << 22, true>>(
+            std::vector<size_t>{num_points_, code_offset_}
+            ,memory::AlignedAllocator<float, 1 << 22, true>(false)
+        );
+    
+    data_cxl_ = data::
+        Array<float, std::vector<size_t>, memory::AlignedAllocator<float, 1 << 22, true>>(
+            std::vector<size_t>{num_points_, row_offset_-code_offset_}
             ,memory::AlignedAllocator<float, 1 << 22, true>(true)
         );
+    
     std::cout << "Memory of data allocated\n";
+
+
 }
 
 // find candidate neighbors for cur_id, exclude the vertex itself
