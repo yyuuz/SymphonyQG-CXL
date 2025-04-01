@@ -370,6 +370,8 @@ inline float QuantizedGraph::scan_neighbors(
         float tmp_dist = appro_dist[i];
 #if defined(DEBUG)
         std::cout << "Neighbor ID " << cur_neighbor << '\n';
+        std::cout <<"packed_code " << code_data[1] << '\t';
+        std::cout << "Factor " << factor[i] << '\t';
         std::cout << "Appro " << appro_dist[i] << '\t';
         float __gt_dist__ = space:: l2_sqr(q_obj.query_data(), get_vector(cur_neighbor), dimension_);
         std::cout << "GT " << __gt_dist__ << '\t';
