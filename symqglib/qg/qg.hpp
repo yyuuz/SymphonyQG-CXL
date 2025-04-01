@@ -20,6 +20,8 @@
 #include "./qg_query.hpp"
 #include "./qg_scanner.hpp"
 
+#define DEBUG
+
 namespace symqg {
 /**
  * @brief this Factor only for illustration, the true storage is continous
@@ -103,6 +105,15 @@ class QuantizedGraph {
         return &data_.at(row_offset_ * data_id);
     }
 
+    [[nodiscard]] float* get_vector_dram(PID data_id) {
+        return &data_dram_.at(dimension_ * data_id);
+    }
+
+    [[nodiscard]] const float* get_vector_dram(PID data_id) const {
+        return &data_dram_.at(dimension_ * data_id);
+    }
+
+
     [[nodiscard]] uint8_t* get_packed_code(PID data_id) {
         return reinterpret_cast<uint8_t*>(&data_.at((row_offset_ * data_id) + code_offset_)
         );
@@ -143,7 +154,8 @@ class QuantizedGraph {
 
     float scan_neighbors(
         const QGQuery& q_obj,
-        const float* cur_data,
+        PID cur_node,
+        //const float* cur_data,
         float* appro_dist,
         buffer::SearchBuffer& search_pool,
         uint32_t cur_degree
@@ -359,7 +371,7 @@ inline float QuantizedGraph::scan_neighbors(
 #if defined(DEBUG)
         std::cout << "Neighbor ID " << cur_neighbor << '\n';
         std::cout << "Appro " << appro_dist[i] << '\t';
-        float __gt_dist__ = l2_sqr(query, get_vector(cur_neighbor), dimension_);
+        float __gt_dist__ = space:: l2_sqr(q_obj.query_data(), get_vector(cur_neighbor), dimension_);
         std::cout << "GT " << __gt_dist__ << '\t';
         std::cout << "Error " << (appro_dist[i] - __gt_dist__) / __gt_dist__ << '\t';
         std::cout << "sqr_y " << sqr_y << '\n';
@@ -369,7 +381,7 @@ inline float QuantizedGraph::scan_neighbors(
         }
         search_pool.insert(cur_neighbor, tmp_dist);
         memory::mem_prefetch_l2(
-            reinterpret_cast<const char*>(get_vector(search_pool.next_id())), 10
+            reinterpret_cast<const char*>(get_vector_dram(search_pool.next_id())), 10
         );
     }
 
@@ -391,7 +403,7 @@ inline void QuantizedGraph::update_results(
             if (!visited_.get(cur_neighbor)) {
                 visited_.set(cur_neighbor);
                 result_pool.insert(
-                    cur_neighbor, space::l2_sqr(query, get_vector(cur_neighbor), dimension_)
+                    cur_neighbor, space::l2_sqr(query, get_vector_dram(cur_neighbor), dimension_)
                 );
             }
         }
@@ -467,6 +479,7 @@ inline void QuantizedGraph::find_candidates(
     HashBasedBooleanSet& vis,
     const std::vector<uint32_t>& degrees
 ) const {
+    std::cout << "Finding candidates for " << cur_id << '\n';
     const float* query = get_vector(cur_id);
     QGQuery q_obj(query, padded_dim_);
     q_obj.query_prepare(rotator_, scanner_);
@@ -488,7 +501,7 @@ inline void QuantizedGraph::find_candidates(
         vis.set(cur_candi);
         auto cur_degree = degrees[cur_candi];
         auto sqr_y = scan_neighbors(
-            q_obj, get_vector(cur_candi), appro_dist.data(), tmp_pool, cur_degree
+            q_obj, cur_candi, appro_dist.data(), tmp_pool, cur_degree
         );
         if (cur_candi != cur_id) {
             results.emplace_back(cur_candi, sqr_y);
