@@ -20,7 +20,7 @@
 #include "./qg_query.hpp"
 #include "./qg_scanner.hpp"
 
-#define DEBUG
+//#define DEBUG
 
 namespace symqg {
 /**
@@ -351,7 +351,7 @@ inline float QuantizedGraph::scan_neighbors(
     float sqr_y = space::l2_sqr(q_obj.query_data(), vec_data, dimension_);
 
     /* Compute approximate distance by Fast Scan */
-    const auto* packed_code = reinterpret_cast<const uint8_t*>(&code_data);
+    const auto* packed_code = reinterpret_cast<const uint8_t*>(code_data);
     const auto* factor = &code_data[factor_offset_-code_offset_];
     this->scanner_.scan_neighbors(
         appro_dist,
